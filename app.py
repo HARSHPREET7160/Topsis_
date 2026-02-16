@@ -170,7 +170,10 @@ def index():
         except EmailDeliveryError as exc:
             status = "error"
             message = str(exc)
-            hint = "For Gmail use SMTP_HOST=smtp.gmail.com, SMTP_PORT=587, SMTP_MODE=tls, and a 16-character app password."
+            hint = (
+                "Check SMTP_HOST/SMTP_PORT/SMTP_MODE/SMTP_USERNAME/SMTP_PASSWORD/MAIL_FROM. "
+                "For SendGrid: SMTP_HOST=smtp.sendgrid.net, SMTP_PORT=587, SMTP_MODE=tls, SMTP_USERNAME=apikey."
+            )
         except Exception as exc:
             status = "error"
             message = f"Failed to process request: {exc}"

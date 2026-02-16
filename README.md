@@ -45,7 +45,7 @@ Open `http://127.0.0.1:8000`.
 2. Create Render Web Service from repo.
 3. Use:
    - Build command: `pip install -r requirements.txt`
-   - Start command: `gunicorn app:app`
+   - Start command: `gunicorn app:app --bind 0.0.0.0:$PORT --access-logfile - --error-logfile - --timeout 120`
 4. Add env vars:
    - `SMTP_HOST`
    - `SMTP_PORT`
@@ -61,3 +61,11 @@ For Gmail, prefer:
 - `SMTP_PORT=587`
 - `SMTP_MODE=tls`
 - Use a Gmail App Password (not normal password)
+
+For SendGrid (easy hosted setup), use:
+- `SMTP_HOST=smtp.sendgrid.net`
+- `SMTP_PORT=587`
+- `SMTP_MODE=tls`
+- `SMTP_USERNAME=apikey`
+- `SMTP_PASSWORD=<SENDGRID_API_KEY>`
+- `MAIL_FROM=<verified_sender_email>`
