@@ -82,11 +82,15 @@ def _get_smtp_config() -> dict[str, object]:
 
 def _send_result_email(recipient: str, csv_bytes: bytes) -> None:
     cfg = _get_smtp_config()
+    postmark_stream = (os.getenv("POSTMARK_MESSAGE_STREAM") or "").strip()
 
     msg = EmailMessage()
     msg["Subject"] = "TOPSIS Result CSV"
     msg["From"] = str(cfg["from"])
     msg["To"] = recipient
+    if postmark_stream:
+        # Postmark uses this header to route to a specific message stream.
+        msg["X-PM-Message-Stream"] = postmark_stream
     msg.set_content("Please find the attached TOPSIS result file.")
     msg.add_attachment(csv_bytes, maintype="text", subtype="csv", filename="topsis-result.csv")
 

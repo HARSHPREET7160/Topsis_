@@ -54,6 +54,7 @@ Open `http://127.0.0.1:8000`.
    - `SMTP_USERNAME`
    - `SMTP_PASSWORD`
    - `MAIL_FROM`
+   - `POSTMARK_MESSAGE_STREAM` (optional, for Postmark stream routing, e.g. `topsis`)
 
 For Gmail, prefer:
 - `SMTP_HOST=smtp.gmail.com`
