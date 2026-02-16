@@ -71,3 +71,6 @@ SMTP_TIMEOUT=8
 Notes:
 - `MAIL_FROM` must be a verified sender in your provider.
 - Rotate any SMTP/API secret that was exposed in screenshots or chat.
+
+<img width="1919" height="912" alt="image" src="https://github.com/user-attachments/assets/6f61fc1f-d499-4d8a-bc1c-9f9fcf5a9d54" />
+
