@@ -39,7 +39,6 @@ def _get_smtp_config() -> dict[str, object]:
     smtp_mode = (os.getenv("SMTP_MODE") or "").strip().lower()
     smtp_timeout_raw = (os.getenv("SMTP_TIMEOUT") or "10").strip()
     if not smtp_mode:
-        # Backward compatibility with older config that used SMTP_USE_TLS=true/false.
         use_tls_legacy = (os.getenv("SMTP_USE_TLS") or "true").strip().lower() in {"1", "true", "yes", "on"}
         smtp_mode = "tls" if use_tls_legacy else "plain"
 
@@ -89,7 +88,6 @@ def _send_result_email(recipient: str, csv_bytes: bytes) -> None:
     msg["From"] = str(cfg["from"])
     msg["To"] = recipient
     if postmark_stream:
-        # Postmark uses this header to route to a specific message stream.
         msg["X-PM-Message-Stream"] = postmark_stream
     msg.set_content("Please find the attached TOPSIS result file.")
     msg.add_attachment(csv_bytes, maintype="text", subtype="csv", filename="topsis-result.csv")

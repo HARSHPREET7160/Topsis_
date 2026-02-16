@@ -54,7 +54,6 @@ def parse_impacts(raw: str) -> List[str]:
     impacts: List[str] = []
     for p in parts:
         p2 = p.strip()
-        # Accept '+', '-', '+ve', '-ve', 'positive', 'negative' (be forgiving)
         if p2 in {"+", "positive", "pos", "+ve", "+v", "benefit"}:
             impacts.append("+")
         elif p2 in {"-", "negative", "neg", "-ve", "-v", "cost"}:
@@ -67,12 +66,10 @@ def parse_impacts(raw: str) -> List[str]:
 def validate_input_dataframe(df: pd.DataFrame) -> None:
     if df.shape[1] < 3:
         raise InputError("Input file must contain three or more columns.")
-    # 2nd to last columns must be numeric
     numeric_part = df.iloc[:, 1:]
     coerced = numeric_part.apply(pd.to_numeric, errors="coerce")
     if coerced.isna().any().any():
         raise InputError("From 2nd to last columns must contain numeric values only.")
-    # Replace with coerced numeric values
     df.iloc[:, 1:] = coerced
 
 
@@ -85,34 +82,27 @@ def topsis(df: pd.DataFrame, weights: Sequence[float], impacts: Sequence[str]) -
             "The number of weights, number of impacts and number of columns (from 2nd to last columns) must be the same."
         )
 
-    # Normalize weights to sum=1 (scale-invariant, improves numerical stability)
     wsum = float(sum(weights))
     if wsum <= 0 or not math.isfinite(wsum):
         raise InputError("Weights sum must be finite and > 0.")
     w = [float(x) / wsum for x in weights]
 
     X = df.iloc[:, 1:].astype(float).to_numpy()
-
-    # Vector normalization
     denom = (X ** 2).sum(axis=0) ** 0.5
     if (denom == 0).any():
         raise InputError("One or more criteria columns have all zeros; cannot normalize.")
     norm = X / denom
 
-    # Weighted normalized matrix
     weighted = norm * w
 
-    # Ideal best/worst
     ideal_best = weighted.max(axis=0).copy()
     ideal_worst = weighted.min(axis=0).copy()
 
     for j, imp in enumerate(impacts):
         if imp == "-":
-            # For cost criteria, best is min and worst is max
             ideal_best[j] = weighted[:, j].min()
             ideal_worst[j] = weighted[:, j].max()
 
-    # Separation measures
     s_pos = ((weighted - ideal_best) ** 2).sum(axis=1) ** 0.5
     s_neg = ((weighted - ideal_worst) ** 2).sum(axis=1) ** 0.5
 
@@ -124,7 +114,6 @@ def topsis(df: pd.DataFrame, weights: Sequence[float], impacts: Sequence[str]) -
 
     out = df.copy()
     out["Topsis Score"] = score
-    # Rank: higher score => better (rank 1)
     out["Rank"] = out["Topsis Score"].rank(method="dense", ascending=False).astype(int)
 
     return TopsisResult(out)
