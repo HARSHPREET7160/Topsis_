@@ -8,7 +8,6 @@ version = "1.0.0"
 description = "A production-grade TOPSIS implementation (CLI + Python package)."
 readme = "README.md"
 requires-python = ">=3.9"
-license = "MIT"
 authors = [{name = "Harshpreet", email = "harshp4466@gmail.com"}]
 dependencies = ["pandas>=2.0"]
 
