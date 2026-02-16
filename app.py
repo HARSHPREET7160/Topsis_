@@ -4,6 +4,7 @@ import io
 import os
 import re
 import smtplib
+import socket
 from email.message import EmailMessage
 
 import pandas as pd
@@ -21,41 +22,103 @@ app = Flask(__name__)
 EMAIL_RE = re.compile(r"^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$")
 
 
+class EmailDeliveryError(RuntimeError):
+    """Raised when SMTP delivery fails with a user-actionable message."""
+
+
 def _is_valid_email(email: str) -> bool:
     return bool(EMAIL_RE.fullmatch(email.strip()))
 
 
-def _send_result_email(recipient: str, csv_bytes: bytes) -> None:
-    smtp_host = os.getenv("SMTP_HOST")
-    smtp_port = int(os.getenv("SMTP_PORT", "587"))
-    smtp_username = os.getenv("SMTP_USERNAME")
-    smtp_password = os.getenv("SMTP_PASSWORD")
-    smtp_from = os.getenv("MAIL_FROM", smtp_username or "")
-    use_tls = os.getenv("SMTP_USE_TLS", "true").strip().lower() in {"1", "true", "yes", "on"}
+def _get_smtp_config() -> dict[str, object]:
+    smtp_host = (os.getenv("SMTP_HOST") or "").strip()
+    smtp_port_raw = (os.getenv("SMTP_PORT") or "587").strip()
+    smtp_username = (os.getenv("SMTP_USERNAME") or "").strip()
+    smtp_password = os.getenv("SMTP_PASSWORD") or ""
+    smtp_from = (os.getenv("MAIL_FROM") or smtp_username).strip()
+    smtp_mode = (os.getenv("SMTP_MODE") or "").strip().lower()
+    if not smtp_mode:
+        # Backward compatibility with older config that used SMTP_USE_TLS=true/false.
+        use_tls_legacy = (os.getenv("SMTP_USE_TLS") or "true").strip().lower() in {"1", "true", "yes", "on"}
+        smtp_mode = "tls" if use_tls_legacy else "plain"
 
-    if not smtp_host or not smtp_username or not smtp_password or not smtp_from:
-        raise RuntimeError(
-            "Email service is not configured. Set SMTP_HOST, SMTP_PORT, SMTP_USERNAME, SMTP_PASSWORD, MAIL_FROM."
-        )
+    if smtp_mode not in {"tls", "ssl", "plain"}:
+        raise EmailDeliveryError("Invalid SMTP_MODE. Use one of: tls, ssl, plain.")
+
+    missing = []
+    if not smtp_host:
+        missing.append("SMTP_HOST")
+    if not smtp_username:
+        missing.append("SMTP_USERNAME")
+    if not smtp_password:
+        missing.append("SMTP_PASSWORD")
+    if not smtp_from:
+        missing.append("MAIL_FROM")
+    if missing:
+        raise EmailDeliveryError(f"Email is not configured. Missing: {', '.join(missing)}")
+
+    try:
+        smtp_port = int(smtp_port_raw)
+    except ValueError as exc:
+        raise EmailDeliveryError("SMTP_PORT must be a valid integer.") from exc
+
+    return {
+        "host": smtp_host,
+        "port": smtp_port,
+        "username": smtp_username,
+        "password": smtp_password,
+        "from": smtp_from,
+        "mode": smtp_mode,
+    }
+
+
+def _send_result_email(recipient: str, csv_bytes: bytes) -> None:
+    cfg = _get_smtp_config()
 
     msg = EmailMessage()
     msg["Subject"] = "TOPSIS Result CSV"
-    msg["From"] = smtp_from
+    msg["From"] = str(cfg["from"])
     msg["To"] = recipient
     msg.set_content("Please find the attached TOPSIS result file.")
     msg.add_attachment(csv_bytes, maintype="text", subtype="csv", filename="topsis-result.csv")
 
-    with smtplib.SMTP(smtp_host, smtp_port, timeout=30) as smtp:
-        if use_tls:
-            smtp.starttls()
-        smtp.login(smtp_username, smtp_password)
-        smtp.send_message(msg)
+    host = str(cfg["host"])
+    port = int(cfg["port"])
+    username = str(cfg["username"])
+    password = str(cfg["password"])
+    mode = str(cfg["mode"])
+
+    try:
+        if mode == "ssl":
+            with smtplib.SMTP_SSL(host, port, timeout=30) as smtp:
+                smtp.login(username, password)
+                smtp.send_message(msg)
+            return
+
+        with smtplib.SMTP(host, port, timeout=30) as smtp:
+            if mode == "tls":
+                smtp.starttls()
+            smtp.login(username, password)
+            smtp.send_message(msg)
+    except socket.gaierror as exc:
+        raise EmailDeliveryError(f"DNS lookup failed for SMTP host '{host}'.") from exc
+    except TimeoutError as exc:
+        raise EmailDeliveryError(f"Timeout while connecting to SMTP server at {host}:{port}.") from exc
+    except OSError as exc:
+        raise EmailDeliveryError(
+            f"Cannot reach SMTP server at {host}:{port} from this deployment ({exc})."
+        ) from exc
+    except smtplib.SMTPAuthenticationError as exc:
+        raise EmailDeliveryError("SMTP authentication failed. Check username/password or app password.") from exc
+    except smtplib.SMTPException as exc:
+        raise EmailDeliveryError(f"SMTP error: {exc}") from exc
 
 
 @app.route("/", methods=["GET", "POST"])
 def index():
     status = None
     message = None
+    hint = None
 
     if request.method == "POST":
         try:
@@ -91,11 +154,15 @@ def index():
         except InputError as exc:
             status = "error"
             message = str(exc)
+        except EmailDeliveryError as exc:
+            status = "error"
+            message = str(exc)
+            hint = "For Gmail use SMTP_HOST=smtp.gmail.com, SMTP_PORT=587, SMTP_MODE=tls, and a 16-character app password."
         except Exception as exc:
             status = "error"
             message = f"Failed to process request: {exc}"
 
-    return render_template("index.html", status=status, message=message)
+    return render_template("index.html", status=status, message=message, hint=hint)
 
 
 if __name__ == "__main__":

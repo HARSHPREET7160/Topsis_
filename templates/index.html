@@ -161,6 +161,9 @@
     {% if message %}
       <div class="msg {{ 'ok' if status == 'success' else 'err' }}">{{ message }}</div>
     {% endif %}
+    {% if hint %}
+      <div class="msg err">{{ hint }}</div>
+    {% endif %}
   </section>
 </body>
 </html>
