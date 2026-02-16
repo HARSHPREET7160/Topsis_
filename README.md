@@ -49,6 +49,7 @@ Open `http://127.0.0.1:8000`.
 4. Add env vars:
    - `SMTP_HOST`
    - `SMTP_PORT`
+   - `SMTP_TIMEOUT` (optional, e.g. `10`)
    - `SMTP_MODE` (`tls` or `ssl`)
    - `SMTP_USERNAME`
    - `SMTP_PASSWORD`

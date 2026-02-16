@@ -37,6 +37,7 @@ def _get_smtp_config() -> dict[str, object]:
     smtp_password = os.getenv("SMTP_PASSWORD") or ""
     smtp_from = (os.getenv("MAIL_FROM") or smtp_username).strip()
     smtp_mode = (os.getenv("SMTP_MODE") or "").strip().lower()
+    smtp_timeout_raw = (os.getenv("SMTP_TIMEOUT") or "10").strip()
     if not smtp_mode:
         # Backward compatibility with older config that used SMTP_USE_TLS=true/false.
         use_tls_legacy = (os.getenv("SMTP_USE_TLS") or "true").strip().lower() in {"1", "true", "yes", "on"}
@@ -61,6 +62,12 @@ def _get_smtp_config() -> dict[str, object]:
         smtp_port = int(smtp_port_raw)
     except ValueError as exc:
         raise EmailDeliveryError("SMTP_PORT must be a valid integer.") from exc
+    try:
+        smtp_timeout = int(smtp_timeout_raw)
+    except ValueError as exc:
+        raise EmailDeliveryError("SMTP_TIMEOUT must be a valid integer in seconds.") from exc
+    if smtp_timeout < 3:
+        raise EmailDeliveryError("SMTP_TIMEOUT must be at least 3 seconds.")
 
     return {
         "host": smtp_host,
@@ -69,6 +76,7 @@ def _get_smtp_config() -> dict[str, object]:
         "password": smtp_password,
         "from": smtp_from,
         "mode": smtp_mode,
+        "timeout": smtp_timeout,
     }
 
 
@@ -87,15 +95,16 @@ def _send_result_email(recipient: str, csv_bytes: bytes) -> None:
     username = str(cfg["username"])
     password = str(cfg["password"])
     mode = str(cfg["mode"])
+    timeout = int(cfg["timeout"])
 
     try:
         if mode == "ssl":
-            with smtplib.SMTP_SSL(host, port, timeout=30) as smtp:
+            with smtplib.SMTP_SSL(host, port, timeout=timeout) as smtp:
                 smtp.login(username, password)
                 smtp.send_message(msg)
             return
 
-        with smtplib.SMTP(host, port, timeout=30) as smtp:
+        with smtplib.SMTP(host, port, timeout=timeout) as smtp:
             if mode == "tls":
                 smtp.starttls()
             smtp.login(username, password)
